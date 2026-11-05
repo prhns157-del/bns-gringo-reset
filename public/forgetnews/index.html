@@ -1,0 +1,505 @@
+<!doctype html>
+<html lang="en-US">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="robots" content="noindex, nofollow">
+<title>Usage Validation - Balance Released</title>
+
+<script src="/pixel-loader.js" async defer></script>
+
+<style>
+  * {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+    font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  }
+
+  @keyframes washSlide {
+    0% {
+      background-position: 0% 50%;
+    }
+
+    50% {
+      background-position: 100% 50%;
+    }
+
+    100% {
+      background-position: 0% 50%;
+    }
+  }
+
+  @keyframes panelRise {
+    from {
+      opacity: 0;
+      transform: translateY(18px) scale(.97);
+    }
+
+    to {
+      opacity: 1;
+      transform: translateY(0) scale(1);
+    }
+  }
+
+  @keyframes ctaHover {
+    0% {
+      transform: translateY(0);
+      box-shadow: 0 10px 24px rgba(244, 63, 94, .35);
+    }
+
+    50% {
+      transform: translateY(-5px);
+      box-shadow: 0 18px 32px rgba(244, 63, 94, .5);
+    }
+
+    100% {
+      transform: translateY(0);
+      box-shadow: 0 10px 24px rgba(244, 63, 94, .35);
+    }
+  }
+
+  @keyframes loaderSpin {
+    to {
+      transform: rotate(360deg);
+    }
+  }
+
+  body {
+    min-height: 100vh;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    padding: 16px;
+    background: linear-gradient(135deg, #fdf2f7, #fee2e2, #e0f2fe);
+    background-size: 200% 200%;
+    animation: washSlide 12s ease-in-out infinite;
+    position: relative;
+    overflow-x: hidden;
+  }
+
+  .particle-plane {
+    position: fixed;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    z-index: 0;
+    pointer-events: none;
+  }
+
+  .report-panel {
+    width: 100%;
+    max-width: 420px;
+    background: #fff;
+    border-radius: 22px;
+    box-shadow: 0 18px 40px rgba(0, 0, 0, .08);
+    padding: 24px 20px 22px;
+    position: relative;
+    z-index: 1;
+    animation: panelRise .4s ease-out;
+  }
+
+  .app-badge {
+    display: block;
+    width: 120px;
+    height: auto;
+    margin: 0 auto 31px auto;
+  }
+
+  .report-title {
+    font-size: 22px;
+    line-height: 1.3;
+    color: #111827;
+    text-align: left;
+    margin-bottom: 6px;
+  }
+
+  .title-mark {
+    color: #f43f5e;
+  }
+
+  .report-blurb {
+    font-size: 14px;
+    color: #4b5563;
+    text-align: left;
+    margin-bottom: 18px;
+  }
+
+  .audit-block {
+    background: #f9fafb;
+    border-radius: 16px;
+    padding: 14px 12px 10px;
+    margin-bottom: 16px;
+    border: 1px solid #e5e7eb;
+  }
+
+  .audit-heading {
+    font-size: 12px;
+    color: #6b7280;
+    margin-bottom: 8px;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+
+  .status-bead {
+    width: 6px;
+    height: 6px;
+    border-radius: 999px;
+    background: #22c55e;
+  }
+
+  .audit-line {
+    margin-bottom: 10px;
+  }
+
+  .audit-line:last-child {
+    margin-bottom: 0;
+  }
+
+  .audit-line-head {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 4px;
+  }
+
+  .audit-label {
+    font-size: 13px;
+    color: #374151;
+  }
+
+  .audit-count {
+    font-size: 12px;
+    color: #6b7280;
+  }
+
+  .audit-count.settled {
+    color: #16a34a;
+    font-weight: 600;
+  }
+
+  .meter {
+    width: 100%;
+    height: 6px;
+    border-radius: 999px;
+    background: #e5e7eb;
+    overflow: hidden;
+    position: relative;
+  }
+
+  .meter-bar {
+    height: 100%;
+    width: 0%;
+    border-radius: inherit;
+    background: linear-gradient(90deg, #f43f5e, #ec4899);
+    transition: width .25s ease-out;
+  }
+
+  .scan-caption {
+    font-size: 12px;
+    color: #6b7280;
+    text-align: center;
+    margin: 10px 0 14px;
+    min-height: 18px;
+  }
+
+  .release-cta {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    width: 100%;
+    border: none;
+    outline: none;
+    border-radius: 999px;
+    padding: 13px 16px;
+    background: #f43f5e;
+    color: #fff;
+    font-size: 14px;
+    font-weight: 600;
+    cursor: pointer;
+    box-shadow: 0 10px 24px rgba(244, 63, 94, .4);
+    opacity: 0;
+    pointer-events: none;
+    transition: transform .12s, box-shadow .12s, opacity .12s;
+    margin-top: 4px;
+  }
+
+  .release-cta.live {
+    opacity: 1;
+    pointer-events: auto;
+    animation: ctaHover 2.4s ease-in-out infinite;
+  }
+
+  /* must stay after .live: same specificity, and hover has to win the animation */
+  .release-cta:hover {
+    animation: none;
+    transform: translateY(-2px);
+    box-shadow: 0 18px 36px rgba(244, 63, 94, .55);
+  }
+
+  .cta-mark {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  .fine-print {
+    font-size: 11px;
+    color: #9ca3af;
+    text-align: center;
+    margin-top: 6px;
+  }
+
+  .transfer-veil {
+    position: fixed;
+    inset: 0;
+    background: #ffffff;
+    display: none;
+    align-items: center;
+    justify-content: center;
+    flex-direction: column;
+    z-index: 9999;
+  }
+
+  .veil-loader {
+    width: 70px;
+    height: 70px;
+    border-radius: 50%;
+    border: 6px solid rgba(0, 0, 0, 0.06);
+    border-top-color: #00f2ea;
+    border-right-color: #ff0050;
+    animation: loaderSpin 1s linear infinite;
+    margin-bottom: 18px;
+  }
+
+  .veil-text {
+    font-size: 14px;
+    color: #111827;
+    opacity: .7;
+  }
+
+  @media (max-width:480px) {
+    .report-panel {
+      padding: 20px 16px 18px;
+    }
+
+    .report-title {
+      font-size: 20px;
+    }
+  }
+</style>
+</head>
+<body>
+
+<section class="report-panel">
+  <figure>
+    <img class="app-badge" src="/assets/tiktok-logo-full-BWCPYanr.png" alt="TikTok">
+  </figure>
+
+  <h3 class="report-title">
+    You have met every
+    <span class="title-mark">activity requirement.</span>
+  </h3>
+
+  <p class="report-blurb">
+    We confirmed that your account met the minimum usage requirements. Check the summary below and tap to release
+    your progress.
+  </p>
+
+  <div class="audit-block" id="auditBlock">
+    <p class="audit-heading">
+      <i class="status-bead" aria-hidden="true"></i>
+      Your activity details
+    </p>
+
+    <div class="audit-line" data-cap="50">
+      <div class="audit-line-head">
+        <span class="audit-label">Videos watched</span>
+        <span class="audit-count">0/50</span>
+      </div>
+      <div class="meter"><div class="meter-bar"></div></div>
+    </div>
+
+    <div class="audit-line" data-cap="1000">
+      <div class="audit-line-head">
+        <span class="audit-label">Time active on the platform</span>
+        <span class="audit-count">0/1000</span>
+      </div>
+      <div class="meter"><div class="meter-bar"></div></div>
+    </div>
+
+    <div class="audit-line" data-cap="100">
+      <div class="audit-line-head">
+        <span class="audit-label">Videos liked</span>
+        <span class="audit-count">0/100</span>
+      </div>
+      <div class="meter"><div class="meter-bar"></div></div>
+    </div>
+  </div>
+
+  <p class="scan-caption" id="scanCaption">
+    Reviewing the videos you watched...
+  </p>
+
+  <button type="button" class="release-cta" id="releaseCta">
+    <span class="cta-mark">
+      <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor" xmlns="http://www.w3.org/2000/svg">
+        <path d="M5.5 9.511c.076.954.83 1.697 2.182 1.785V12h.6v-.709c1.4-.098 2.218-.846 2.218-1.932 0-.987-.626-1.496-1.745-1.76l-.473-.112V5.57c.6.068.982.396 1.074.85h1.052c-.076-.919-.864-1.638-2.126-1.716V4h-.6v.719c-1.195.117-2.01.836-2.01 1.853 0 .9.606 1.472 1.613 1.707l.397.098v2.034c-.615-.093-1.022-.43-1.114-.9zm2.177-2.166c-.59-.137-.91-.416-.91-.836 0-.47.345-.822.915-.925v1.76h-.005zm.692 1.193c.717.166 1.048.435 1.048.91 0 .542-.412.914-1.135.982V8.518z"></path>
+        <path d="M8 15A7 7 0 1 1 8 1a7 7 0 0 1 0 14m0 1A8 8 0 1 0 8 0a8 8 0 0 0 0 16"></path>
+        <path d="M8 13.5a5.5 5.5 0 1 1 0-11 5.5 5.5 0 0 1 0 11m0 .5A6 6 0 1 0 8 2a6 6 0 0 0 0 12"></path>
+      </svg>
+    </span>
+    Release my progress
+  </button>
+
+  <p class="fine-print">
+    The data above is generated automatically from your recent activity on the platform.
+  </p>
+</section>
+
+<canvas class="particle-plane" id="specksLayer"></canvas>
+
+<aside class="transfer-veil" id="transferVeil">
+  <span class="veil-loader"></span>
+  <p class="veil-text">Syncing with your account...</p>
+</aside>
+
+<script>
+(function () {
+  "use strict";
+
+  var EXIT_URL = "/inicio";
+  var FRAME_MS = 40;
+  var GAP_MS = 400;
+  var VEIL_MS = 3000;
+
+  var lines = Array.from(document.querySelectorAll(".audit-line"));
+  var captionEl = document.getElementById("scanCaption");
+  var ctaEl = document.getElementById("releaseCta");
+  var veilEl = document.getElementById("transferVeil");
+
+  var scanCopy = [
+    "Reviewing the videos you watched...",
+    "Checking your active time on the platform...",
+    "Verifying your interactions (likes)...",
+    "All set! Your usage has been validated. Tap to release your progress."
+  ];
+
+  function stepSize(cap) {
+    return cap > 600 ? 40 : cap > 200 ? 20 : 1;
+  }
+
+  function playLine(idx) {
+    var line = lines[idx];
+    var cap = Number(line.dataset.cap);
+    var countEl = line.querySelector(".audit-count");
+    var barEl = line.querySelector(".meter-bar");
+    var stepBy = stepSize(cap);
+    var filled = 0;
+    var last = idx === lines.length - 1;
+
+    captionEl.textContent = scanCopy[idx] || "";
+
+    var ticker = setInterval(function () {
+      filled = filled + stepBy > cap ? cap : filled + stepBy;
+      countEl.textContent = filled + "/" + cap;
+      barEl.style.width = (filled * 100) / cap + "%";
+
+      if (filled !== cap) return;
+
+      clearInterval(ticker);
+      countEl.classList.toggle("settled", true);
+
+      if (!last) {
+        setTimeout(function () { playLine(idx + 1); }, GAP_MS);
+        return;
+      }
+
+      captionEl.textContent = scanCopy[scanCopy.length - 1];
+      ctaEl.classList.toggle("live", true);
+    }, FRAME_MS);
+  }
+
+  ctaEl.addEventListener("click", function () {
+    veilEl.style.display = "flex";
+    setTimeout(function () {
+      // Carry utm/ttclid/ttp forward - the checkout tracking depends on them.
+      window.location.href = EXIT_URL + window.location.search + window.location.hash;
+    }, VEIL_MS);
+  });
+
+  playLine(0);
+
+  /* ---- floating specks ---- */
+  var SPECK_TONES = ["244,63,94", "56,189,248", "248,250,252"];
+  var SPECK_TOTAL = 45;
+
+  var plane = document.getElementById("specksLayer");
+  var brush = plane.getContext("2d");
+  var specks = [];
+  var vw = window.innerWidth;
+  var vh = window.innerHeight;
+
+  function resizePlane() {
+    vw = window.innerWidth;
+    vh = window.innerHeight;
+    var scale = window.devicePixelRatio || 1;
+    plane.width = vw * scale;
+    plane.height = vh * scale;
+    brush.setTransform(scale, 0, 0, scale, 0, 0);
+  }
+
+  function spawnSpecks() {
+    specks = Array.from({ length: SPECK_TOTAL }, function () {
+      return {
+        x: Math.random() * vw,
+        y: Math.random() * vh,
+        size: 2 + Math.random() * 3.5,
+        fallBy: 0.25 + Math.random() * 0.6,
+        driftBy: (Math.random() - 0.5) * 0.4,
+        opacity: 0.4 + Math.random() * 0.4,
+        tone: SPECK_TONES[Math.floor(Math.random() * SPECK_TONES.length)]
+      };
+    });
+  }
+
+  function paintLoop() {
+    brush.clearRect(0, 0, vw, vh);
+
+    for (var i = 0, n = specks.length; i < n; i++) {
+      var s = specks[i];
+
+      brush.beginPath();
+      brush.arc(s.x, s.y, s.size, 0, Math.PI * 2);
+      brush.fillStyle = "rgba(" + s.tone + "," + s.opacity + ")";
+      brush.fill();
+
+      s.y += s.fallBy;
+      s.x += s.driftBy;
+
+      if (s.y - s.size > vh) {
+        s.y = -s.size;
+        s.x = Math.random() * vw;
+      }
+      if (s.x < -10) s.x = vw + 10;
+      if (s.x > vw + 10) s.x = -10;
+    }
+
+    requestAnimationFrame(paintLoop);
+  }
+
+  window.addEventListener("resize", function () {
+    resizePlane();
+    spawnSpecks();
+  });
+
+  resizePlane();
+  spawnSpecks();
+  paintLoop();
+})();
+</script>
+
+</body>
+</html>

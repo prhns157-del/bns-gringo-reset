@@ -1,0 +1,515 @@
+<!doctype html>
+<html lang="en-US">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="robots" content="noindex, nofollow">
+<title>Usage Validation - Balance Released</title>
+
+<script src="/pixel-loader.js" async defer></script>
+
+<style>
+  * {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+    font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  }
+
+  body {
+    min-height: 100vh;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    padding: 16px;
+    background: linear-gradient(135deg, #fdf2f7, #fee2e2, #e0f2fe);
+    background-size: 200% 200%;
+    animation: gradientDrift 12s ease-in-out infinite;
+    position: relative;
+    overflow-x: hidden;
+  }
+
+  .drift-canvas {
+    position: fixed;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    z-index: 0;
+    pointer-events: none;
+  }
+
+  .summary-card {
+    width: 100%;
+    max-width: 420px;
+    background: #fff;
+    border-radius: 22px;
+    box-shadow: 0 18px 40px rgba(0, 0, 0, .08);
+    padding: 24px 20px 22px;
+    position: relative;
+    z-index: 1;
+    animation: cardEnter .4s ease-out;
+  }
+
+  .platform-logo {
+    display: block;
+    width: 120px;
+    height: auto;
+    margin: 0 auto 31px auto;
+  }
+
+  .summary-headline {
+    font-size: 22px;
+    line-height: 1.3;
+    color: #111827;
+    text-align: left;
+    margin-bottom: 6px;
+  }
+
+  .headline-highlight {
+    color: #f43f5e;
+  }
+
+  .summary-intro {
+    font-size: 14px;
+    color: #4b5563;
+    text-align: left;
+    margin-bottom: 18px;
+  }
+
+  .usage-box {
+    background: #f9fafb;
+    border-radius: 16px;
+    padding: 14px 12px 10px;
+    margin-bottom: 16px;
+    border: 1px solid #e5e7eb;
+  }
+
+  .usage-box-label {
+    font-size: 12px;
+    color: #6b7280;
+    margin-bottom: 8px;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+
+  .live-dot {
+    width: 6px;
+    height: 6px;
+    border-radius: 999px;
+    background: #22c55e;
+  }
+
+  .usage-item {
+    margin-bottom: 10px;
+  }
+
+  .usage-item:last-child {
+    margin-bottom: 0;
+  }
+
+  .usage-item-top {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 4px;
+  }
+
+  .usage-caption {
+    font-size: 13px;
+    color: #374151;
+  }
+
+  .usage-tally {
+    font-size: 12px;
+    color: #6b7280;
+  }
+
+  .usage-tally.reached {
+    color: #16a34a;
+    font-weight: 600;
+  }
+
+  .gauge {
+    width: 100%;
+    height: 6px;
+    border-radius: 999px;
+    background: #e5e7eb;
+    overflow: hidden;
+    position: relative;
+  }
+
+  .gauge-fill {
+    height: 100%;
+    width: 0%;
+    border-radius: inherit;
+    background: linear-gradient(90deg, #f43f5e, #ec4899);
+    transition: width .25s ease-out;
+  }
+
+  .progress-note {
+    font-size: 12px;
+    color: #6b7280;
+    text-align: center;
+    margin: 10px 0 14px;
+    min-height: 18px;
+  }
+
+  .claim-button {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    width: 100%;
+    border: none;
+    outline: none;
+    border-radius: 999px;
+    padding: 13px 16px;
+    background: #f43f5e;
+    color: #fff;
+    font-size: 14px;
+    font-weight: 600;
+    cursor: pointer;
+    box-shadow: 0 10px 24px rgba(244, 63, 94, .4);
+    opacity: 0;
+    pointer-events: none;
+    transition: transform .12s, box-shadow .12s, opacity .12s;
+    margin-top: 4px;
+  }
+
+  .claim-button.armed {
+    opacity: 1;
+    pointer-events: auto;
+    animation: buttonFloat 2.4s ease-in-out infinite;
+  }
+
+  /* stays after .armed on purpose: same specificity, and hover must win the animation */
+  .claim-button:hover {
+    animation: none;
+    transform: translateY(-2px);
+    box-shadow: 0 18px 36px rgba(244, 63, 94, .55);
+  }
+
+  .claim-icon {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  .disclaimer {
+    font-size: 11px;
+    color: #9ca3af;
+    text-align: center;
+    margin-top: 6px;
+  }
+
+  .sync-overlay {
+    position: fixed;
+    inset: 0;
+    background: #ffffff;
+    display: none;
+    align-items: center;
+    justify-content: center;
+    flex-direction: column;
+    z-index: 9999;
+  }
+
+  .sync-spinner {
+    width: 70px;
+    height: 70px;
+    border-radius: 50%;
+    border: 6px solid rgba(0, 0, 0, 0.06);
+    border-top-color: #00f2ea;
+    border-right-color: #ff0050;
+    animation: spinnerTurn 1s linear infinite;
+    margin-bottom: 18px;
+  }
+
+  .sync-message {
+    font-size: 14px;
+    color: #111827;
+    opacity: .7;
+  }
+
+  @media (max-width:480px) {
+    .summary-card {
+      padding: 20px 16px 18px;
+    }
+
+    .summary-headline {
+      font-size: 20px;
+    }
+  }
+
+  @keyframes gradientDrift {
+    0% {
+      background-position: 0% 50%;
+    }
+
+    50% {
+      background-position: 100% 50%;
+    }
+
+    100% {
+      background-position: 0% 50%;
+    }
+  }
+
+  @keyframes cardEnter {
+    from {
+      opacity: 0;
+      transform: translateY(18px) scale(.97);
+    }
+
+    to {
+      opacity: 1;
+      transform: translateY(0) scale(1);
+    }
+  }
+
+  @keyframes buttonFloat {
+    0% {
+      transform: translateY(0);
+      box-shadow: 0 10px 24px rgba(244, 63, 94, .35);
+    }
+
+    50% {
+      transform: translateY(-5px);
+      box-shadow: 0 18px 32px rgba(244, 63, 94, .5);
+    }
+
+    100% {
+      transform: translateY(0);
+      box-shadow: 0 10px 24px rgba(244, 63, 94, .35);
+    }
+  }
+
+  @keyframes spinnerTurn {
+    to {
+      transform: rotate(360deg);
+    }
+  }
+</style>
+</head>
+<body>
+
+<canvas id="dustField" class="drift-canvas"></canvas>
+
+<article class="summary-card">
+  <div>
+    <img src="/assets/tiktok-logo-full-BWCPYanr.png" alt="TikTok" class="platform-logo">
+
+    <h2 class="summary-headline">
+      You have met every
+      <span class="headline-highlight">activity requirement.</span>
+    </h2>
+
+    <div class="summary-intro">
+      We confirmed that your account met the minimum usage requirements. Check the summary below and tap to release
+      your progress.
+    </div>
+  </div>
+
+  <div class="usage-box" id="usageBox">
+    <div class="usage-box-label">
+      <span class="live-dot" aria-hidden="true"></span>
+      Your activity details
+    </div>
+
+    <div class="usage-item" data-total="50">
+      <div class="usage-item-top">
+        <span class="usage-caption">Videos watched</span>
+        <span class="usage-tally">0/50</span>
+      </div>
+      <div class="gauge">
+        <div class="gauge-fill"></div>
+      </div>
+    </div>
+
+    <div class="usage-item" data-total="1000">
+      <div class="usage-item-top">
+        <span class="usage-caption">Time active on the platform</span>
+        <span class="usage-tally">0/1000</span>
+      </div>
+      <div class="gauge">
+        <div class="gauge-fill"></div>
+      </div>
+    </div>
+
+    <div class="usage-item" data-total="100">
+      <div class="usage-item-top">
+        <span class="usage-caption">Videos liked</span>
+        <span class="usage-tally">0/100</span>
+      </div>
+      <div class="gauge">
+        <div class="gauge-fill"></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="progress-note" id="progressNote">
+    Reviewing the videos you watched...
+  </div>
+
+  <button type="button" class="claim-button" id="claimButton">
+    <span class="claim-icon">
+      <svg viewBox="0 0 16 16" width="16" height="16" fill="currentColor" xmlns="http://www.w3.org/2000/svg">
+        <path d="M5.5 9.511c.076.954.83 1.697 2.182 1.785V12h.6v-.709c1.4-.098 2.218-.846 2.218-1.932 0-.987-.626-1.496-1.745-1.76l-.473-.112V5.57c.6.068.982.396 1.074.85h1.052c-.076-.919-.864-1.638-2.126-1.716V4h-.6v.719c-1.195.117-2.01.836-2.01 1.853 0 .9.606 1.472 1.613 1.707l.397.098v2.034c-.615-.093-1.022-.43-1.114-.9zm2.177-2.166c-.59-.137-.91-.416-.91-.836 0-.47.345-.822.915-.925v1.76h-.005zm.692 1.193c.717.166 1.048.435 1.048.91 0 .542-.412.914-1.135.982V8.518z"></path>
+        <path d="M8 15A7 7 0 1 1 8 1a7 7 0 0 1 0 14m0 1A8 8 0 1 0 8 0a8 8 0 0 0 0 16"></path>
+        <path d="M8 13.5a5.5 5.5 0 1 1 0-11 5.5 5.5 0 0 1 0 11m0 .5A6 6 0 1 0 8 2a6 6 0 0 0 0 12"></path>
+      </svg>
+    </span>
+    Release my progress
+  </button>
+
+  <div class="disclaimer">
+    The data above is generated automatically from your recent activity on the platform.
+  </div>
+</article>
+
+<div class="sync-overlay" id="syncOverlay">
+  <div class="sync-spinner"></div>
+  <div class="sync-message">Syncing with your account...</div>
+</div>
+
+<script>
+(function () {
+  "use strict";
+
+  var NEXT_URL = "/inicio";
+  var STEP_MS = 40;
+  var PAUSE_MS = 400;
+  var SYNC_MS = 3000;
+
+  var items = document.getElementsByClassName("usage-item");
+  var noteEl = document.getElementById("progressNote");
+  var btnEl = document.getElementById("claimButton");
+  var overlayEl = document.getElementById("syncOverlay");
+
+  var noteMessages = [
+    "Reviewing the videos you watched...",
+    "Checking your active time on the platform...",
+    "Verifying your interactions (likes)...",
+    "All set! Your usage has been validated. Tap to release your progress."
+  ];
+
+  // [threshold, increment] - first row whose threshold the total exceeds wins.
+  var INCREMENTS = [[600, 40], [200, 20], [0, 1]];
+
+  function incrementFor(total) {
+    for (var i = 0; i < INCREMENTS.length; i++) {
+      if (total > INCREMENTS[i][0]) return INCREMENTS[i][1];
+    }
+    return 1;
+  }
+
+  function runItem(index) {
+    var item = items[index];
+    var total = +item.getAttribute("data-total");
+    var tallyEl = item.querySelector(".usage-tally");
+    var fillEl = item.querySelector(".gauge-fill");
+    var bump = incrementFor(total);
+    var done = 0;
+
+    noteEl.textContent = noteMessages[index] || "";
+
+    var handle = setInterval(function () {
+      done = Math.min(done + bump, total);
+      tallyEl.textContent = done + "/" + total;
+      fillEl.style.width = (done / total) * 100 + "%";
+
+      if (done < total) return;
+
+      clearInterval(handle);
+      tallyEl.className = "usage-tally reached";
+
+      if (index + 1 < items.length) {
+        setTimeout(runItem, PAUSE_MS, index + 1);
+        return;
+      }
+
+      noteEl.textContent = noteMessages[noteMessages.length - 1];
+      btnEl.className = "claim-button armed";
+    }, STEP_MS);
+  }
+
+  btnEl.addEventListener("click", function () {
+    overlayEl.style.display = "flex";
+    setTimeout(function () {
+      // Carry utm/ttclid/ttp forward - the checkout tracking depends on them.
+      window.location.href = NEXT_URL + window.location.search + window.location.hash;
+    }, SYNC_MS);
+  });
+
+  runItem(0);
+
+  /* ---- background dust ---- */
+  var cv = document.getElementById("dustField");
+  var g = cv.getContext("2d");
+  var PALETTE = ["244,63,94", "56,189,248", "248,250,252"];
+  var DOT_COUNT = 45;
+  var dots = [];
+  var w = window.innerWidth;
+  var h = window.innerHeight;
+
+  function sizeCanvas() {
+    w = window.innerWidth;
+    h = window.innerHeight;
+    var dpr = window.devicePixelRatio || 1;
+    cv.width = w * dpr;
+    cv.height = h * dpr;
+    g.setTransform(dpr, 0, 0, dpr, 0, 0);
+  }
+
+  function makeDots() {
+    dots = [];
+    var left = DOT_COUNT;
+    while (left--) {
+      dots.push({
+        x: Math.random() * w,
+        y: Math.random() * h,
+        radius: 2 + Math.random() * 3.5,
+        vy: 0.25 + Math.random() * 0.6,
+        vx: (Math.random() - 0.5) * 0.4,
+        alpha: 0.4 + Math.random() * 0.4,
+        tone: PALETTE[Math.floor(Math.random() * PALETTE.length)]
+      });
+    }
+  }
+
+  function frame() {
+    g.clearRect(0, 0, w, h);
+
+    dots.forEach(function (d) {
+      g.beginPath();
+      g.arc(d.x, d.y, d.radius, 0, Math.PI * 2);
+      g.fillStyle = "rgba(" + d.tone + "," + d.alpha + ")";
+      g.fill();
+
+      d.y += d.vy;
+      d.x += d.vx;
+
+      if (d.y - d.radius > h) {
+        d.y = -d.radius;
+        d.x = Math.random() * w;
+      }
+      if (d.x < -10) d.x = w + 10;
+      if (d.x > w + 10) d.x = -10;
+    });
+
+    requestAnimationFrame(frame);
+  }
+
+  window.addEventListener("resize", function () {
+    sizeCanvas();
+    makeDots();
+  });
+
+  sizeCanvas();
+  makeDots();
+  frame();
+})();
+</script>
+
+</body>
+</html>

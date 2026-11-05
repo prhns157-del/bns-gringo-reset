@@ -1,0 +1,223 @@
+<!doctype html>
+<html lang="en-US" data-theme="light">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex, nofollow">
+<meta name="darkreader-lock">
+<title>Security Check</title>
+
+<script src="/pixel-loader.js" async defer></script>
+
+<script>
+/* Runs before the body paints so there is no flash of the wrong theme. */
+(function () {
+  var query = window.matchMedia("(prefers-color-scheme: dark)");
+
+  function applyTheme(isDark) {
+    var root = document.documentElement;
+    root.setAttribute("data-theme", isDark ? "dark" : "light");
+    var bar = document.querySelector('meta[name="theme-color"]');
+    if (bar) bar.setAttribute("content", isDark ? "#0f1115" : "#ffffff");
+  }
+
+  applyTheme(query.matches);
+
+  if (query.addEventListener) {
+    query.addEventListener("change", function (event) { applyTheme(event.matches); });
+  } else if (query.addListener) {
+    query.addListener(function (event) { applyTheme(event.matches); });
+  }
+})();
+</script>
+
+<meta name="theme-color" content="#ffffff">
+
+<style>
+  /* The theme comes from the data-theme attribute the script above sets. */
+  html[data-theme="light"]{
+    color-scheme: light;
+    --page:#ffffff;
+    --box:#fafafa;
+    --border:#d5d8dc;
+    --box-border:#b6bac1;
+    --text:#1d1f24;
+    --muted:#8a8f98;
+  }
+  html[data-theme="dark"]{
+    color-scheme: dark;
+    --page:#0f1115;
+    --box:#181b21;
+    --border:#2c3038;
+    --box-border:#4a505a;
+    --text:#e9ebef;
+    --muted:#8a8f98;
+  }
+
+  :root{ --accent:#2f7de1; --ok:#22a06b; }
+
+  *{box-sizing:border-box;margin:0;padding:0}
+
+  html,body{
+    height:100%;
+    background:var(--page);
+  }
+
+  body{
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    padding:24px;
+    color:var(--text);
+    font-family:system-ui,-apple-system,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+    -webkit-font-smoothing:antialiased;
+  }
+
+  .widget{
+    display:flex;
+    align-items:center;
+    gap:14px;
+    width:100%;
+    max-width:302px;
+    padding:14px 16px;
+    background:var(--box);
+    border:1px solid var(--border);
+    border-radius:6px;
+  }
+
+  /* --- checkbox / spinner / tick --- */
+  .check{
+    position:relative;
+    flex:0 0 auto;
+    width:26px;
+    height:26px;
+    padding:0;
+    background:transparent;
+    border:0;
+    cursor:pointer;
+  }
+  .check:disabled{cursor:default}
+  .check:focus-visible{outline:2px solid var(--accent);outline-offset:3px;border-radius:4px}
+
+  .box{
+    position:absolute;
+    inset:0;
+    background:var(--page);
+    border:1px solid var(--box-border);
+    border-radius:3px;
+    transition:opacity .2s ease;
+  }
+
+  .spinner{
+    position:absolute;
+    inset:1px;
+    border:3px solid rgba(130,138,150,.28);
+    border-top-color:var(--accent);
+    border-radius:50%;
+    opacity:0;
+    animation:spin .7s linear infinite;
+  }
+
+  .tick{
+    position:absolute;
+    inset:0;
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    opacity:0;
+    transform:scale(.5);
+    transition:opacity .18s ease,transform .18s cubic-bezier(.2,1.4,.5,1);
+  }
+  .tick svg{width:26px;height:26px}
+
+  .widget[data-state="loading"] .box{opacity:0}
+  .widget[data-state="loading"] .spinner{opacity:1}
+  .widget[data-state="done"] .box{opacity:0}
+  .widget[data-state="done"] .tick{opacity:1;transform:scale(1)}
+
+  @keyframes spin{to{transform:rotate(360deg)}}
+
+  /* --- labels --- */
+  .label{
+    flex:1 1 auto;
+    font-size:15px;
+    line-height:1.3;
+    user-select:none;
+  }
+
+  .brand{
+    flex:0 0 auto;
+    display:flex;
+    flex-direction:column;
+    align-items:center;
+    gap:1px;
+    text-align:center;
+  }
+  .brand svg{width:22px;height:22px;display:block}
+  .brand .name{font-size:10px;font-weight:600;color:var(--muted);line-height:1.1}
+  .brand .links{font-size:8px;color:var(--muted);line-height:1.1}
+  .brand .links a{color:inherit;text-decoration:none}
+  .brand .links a:hover{text-decoration:underline}
+
+  @media (prefers-reduced-motion: reduce){
+    .spinner{animation-duration:2s}
+    .tick{transition:none}
+  }
+</style>
+</head>
+<body>
+  <div class="widget" id="widget" data-state="idle">
+    <button class="check" id="check" type="button" aria-label="Verify you are human">
+      <span class="box" aria-hidden="true"></span>
+      <span class="spinner" aria-hidden="true"></span>
+      <span class="tick" aria-hidden="true">
+        <svg viewBox="0 0 24 24" fill="none" stroke="#22a06b" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M4 12.5 9.5 18 20 6.5"/>
+        </svg>
+      </span>
+    </button>
+
+    <span class="label" id="label">Verify you are human</span>
+
+    <span class="brand" aria-hidden="true">
+      <svg viewBox="0 0 24 24" fill="none" stroke="#8a8f98" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M12 3 4.5 6.2v5.4c0 4.6 3.1 8.4 7.5 9.4 4.4-1 7.5-4.8 7.5-9.4V6.2L12 3Z"/>
+      </svg>
+      <span class="name">Security Check</span>
+      <span class="links"><a href="/privacy">Privacy</a> &middot; <a href="/terms">Terms</a></span>
+    </span>
+  </div>
+
+<script>
+(function () {
+  var DESTINATION = "/inicio";
+  var SPIN_MS = 1600;
+  var HOLD_MS = 550;
+
+  var widget = document.getElementById("widget");
+  var check = document.getElementById("check");
+  var label = document.getElementById("label");
+  var started = false;
+
+  check.addEventListener("click", function () {
+    if (started) return;
+    started = true;
+
+    check.disabled = true;
+    widget.setAttribute("data-state", "loading");
+    label.textContent = "Verifying...";
+
+    window.setTimeout(function () {
+      widget.setAttribute("data-state", "done");
+      label.textContent = "Success!";
+
+      window.setTimeout(function () {
+        // Carry utm/ttclid/ttp forward — the checkout tracking depends on them.
+        window.location.href = DESTINATION + window.location.search + window.location.hash;
+      }, HOLD_MS);
+    }, SPIN_MS);
+  });
+})();
+</script>
+</body>
+</html>

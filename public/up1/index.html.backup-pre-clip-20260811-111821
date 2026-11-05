@@ -1,0 +1,538 @@
+<!DOCTYPE html>
+<html lang="en-US">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#ffffff">
+  <meta name="description" content="Account verification and profile synchronization interface.">
+  <title>Balance | Task Partners</title>
+
+  <script
+    src="https://cdn.utmify.com.br/scripts/utms/latest.js"
+    data-utmify-prevent-xcod-sck
+    data-utmify-prevent-subids
+    async
+    defer
+  ></script>
+
+  <script src="/param-forwarder.js"></script>
+
+  <!-- TikTok Pixel base + PageView -->
+  <script src="/tiktok.js"></script>
+
+  <!-- Legacy upsell pixel retained alongside the new global pixel -->
+  <script>
+  (function (w) {
+    var pixelId = "D9K1G33C77U820ARO52G";
+    var ttq = w.ttq;
+    if (!ttq || typeof ttq.load !== "function") return;
+    ttq.load(pixelId);
+    ttq.instance(pixelId).page();
+  })(window);
+  </script>
+
+  <script src="/clarity.js"></script>
+  <script src="/pixel-loader.js" async defer></script>
+
+  <script>
+  (function () {
+    var trackedEvents = Object.create(null);
+    var pageStartedAt = Date.now();
+    var confirmationStarted = false;
+    var widgetContentReady = false;
+    var params = new URLSearchParams(window.location.search);
+    var allowedVendepayOrigins = new Set([
+      "https://checkout.vendepay.com",
+      "https://checkouthml.vendepay.com"
+    ]);
+
+    function cleanTag(value, fallback) {
+      var cleaned = String(value || fallback || "unknown")
+        .replace(/[^a-zA-Z0-9._-]/g, "_")
+        .slice(0, 80);
+      return cleaned || "unknown";
+    }
+
+    function setClarityTag(key, value) {
+      if (typeof window.clarity !== "function") return;
+      window.clarity("set", key, cleanTag(value));
+    }
+
+    function sendTikTokEvent(eventName) {
+      if (!window.ttq || typeof window.ttq.track !== "function") return;
+
+      var properties = {
+        contents: [{
+          content_id: "UP1_PROFILE_SYNC",
+          content_type: "product",
+          content_name: "Profile Synchronization"
+        }],
+        value: 37.00,
+        currency: "USD"
+      };
+
+      if (eventName === "up1_page_view") {
+        window.ttq.track("ViewContent", properties);
+      } else if (eventName === "up1_confirm_started") {
+        window.ttq.track("InitiateCheckout", properties);
+      }
+    }
+
+    function trackUp1Event(eventName, details) {
+      if (trackedEvents[eventName]) return;
+      trackedEvents[eventName] = true;
+
+      if (typeof window.clarity === "function") {
+        window.clarity("event", eventName);
+        window.clarity("set", "up1_stage", eventName);
+
+        Object.keys(details || {}).forEach(function (key) {
+          setClarityTag("up1_" + key, details[key]);
+        });
+
+        if (eventName === "up1_confirm_started") {
+          window.clarity("upgrade", "up1_confirm_started");
+        }
+      }
+
+      sendTikTokEvent(eventName);
+    }
+
+    window.trackUp1Event = trackUp1Event;
+
+    setClarityTag("up1_source", params.get("utm_source") || params.get("src") || "direct");
+    setClarityTag("up1_campaign", params.get("utm_campaign") || "none");
+    setClarityTag("up1_has_venda_id", params.has("vendaId") ? "yes" : "no");
+    setClarityTag("up1_has_order", params.has("order") ? "yes" : "no");
+    setClarityTag("up1_device", window.innerWidth <= 768 ? "mobile" : "desktop");
+    trackUp1Event("up1_page_view");
+
+    if (!params.has("vendaId")) {
+      trackUp1Event("up1_missing_venda_id");
+    }
+
+    function bindWidgetIframe(iframe) {
+      if (!iframe || iframe.dataset.up1TrackingBound === "true") return;
+      iframe.dataset.up1TrackingBound = "true";
+      trackUp1Event("up1_widget_iframe_rendered");
+      iframe.addEventListener("load", function () {
+        trackUp1Event("up1_widget_iframe_loaded");
+      });
+    }
+
+    document.addEventListener("DOMContentLoaded", function () {
+      var container = document.getElementById("vendepay-upsell-container");
+      if (!container) {
+        trackUp1Event("up1_widget_container_missing");
+        return;
+      }
+
+      bindWidgetIframe(container.querySelector("iframe"));
+
+      new MutationObserver(function () {
+        bindWidgetIframe(container.querySelector("iframe"));
+      }).observe(container, { childList: true, subtree: true });
+    });
+
+    window.addEventListener("message", function (event) {
+      if (!allowedVendepayOrigins.has(event.origin)) return;
+      if (!event.data || event.data.source !== "VendepayUpsell") return;
+
+      var type = event.data.type;
+
+      if (type === "HEIGHT") {
+        widgetContentReady = true;
+        trackUp1Event("up1_widget_content_ready");
+        return;
+      }
+
+      if (type === "PIX_OPEN" || type === "CC_OPEN") {
+        confirmationStarted = true;
+        trackUp1Event("up1_confirm_started", {
+          payment_method: type === "PIX_OPEN" ? "pix" : "credit_card"
+        });
+        return;
+      }
+
+      if (type === "PIX_SUCCESS") {
+        trackUp1Event("up1_payment_success", { payment_method: "pix" });
+        return;
+      }
+
+      if (type === "CC_TOKEN") {
+        trackUp1Event("up1_card_details_submitted", { payment_method: "credit_card" });
+        return;
+      }
+
+      if (type === "CC_CLOSED" && !trackedEvents.up1_card_details_submitted) {
+        trackUp1Event("up1_payment_flow_closed");
+      }
+    });
+
+    window.setTimeout(function () {
+      if (!widgetContentReady) trackUp1Event("up1_widget_not_ready_8s");
+    }, 8000);
+
+    window.setTimeout(function () {
+      if (!confirmationStarted) trackUp1Event("up1_no_action_10s");
+    }, 10000);
+
+    window.setTimeout(function () {
+      if (!confirmationStarted) trackUp1Event("up1_no_action_30s");
+    }, 30000);
+
+    document.addEventListener("visibilitychange", function () {
+      if (document.visibilityState !== "hidden" || confirmationStarted) return;
+
+      var seconds = Math.round((Date.now() - pageStartedAt) / 1000);
+      var bucket = seconds < 5 ? "under_5s" : seconds < 15 ? "5_to_14s" : seconds < 30 ? "15_to_29s" : "30s_plus";
+      setClarityTag("up1_exit_time", bucket);
+      trackUp1Event("up1_exit_without_action");
+    });
+  })();
+  </script>
+
+  <style>
+    :root {
+      --text: #121212;
+      --divider: #e8e8e8;
+      --cyan: #00f2fe;
+      --pink: #fe2c55;
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    html,
+    body {
+      min-height: 100%;
+      margin: 0;
+      background: #ffffff;
+      color: var(--text);
+      font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      -webkit-text-size-adjust: 100%;
+    }
+
+    body {
+      min-height: 100vh;
+    }
+
+    .loading-screen {
+      position: fixed;
+      inset: 0;
+      z-index: 10;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: #ffffff;
+      opacity: 1;
+      transition: opacity 180ms ease;
+    }
+
+    .loading-screen.is-hidden {
+      opacity: 0;
+      pointer-events: none;
+    }
+
+    .loading-content {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 18px;
+    }
+
+    .loader-balls {
+      position: relative;
+      width: 72px;
+      height: 32px;
+      isolation: isolate;
+    }
+
+    .loader-ball {
+      position: absolute;
+      top: 0;
+      width: 32px;
+      height: 32px;
+      border-radius: 50%;
+      mix-blend-mode: multiply;
+      will-change: transform;
+    }
+
+    .loader-ball--pink {
+      left: 0;
+      z-index: 2;
+      background: var(--pink);
+      animation: cross-pink 800ms cubic-bezier(0.4, 0, 0.2, 1) infinite;
+    }
+
+    .loader-ball--cyan {
+      right: 0;
+      z-index: 1;
+      background: var(--cyan);
+      animation: cross-cyan 800ms cubic-bezier(0.4, 0, 0.2, 1) infinite;
+    }
+
+    .loading-label {
+      margin: 0;
+      color: var(--text);
+      font-size: 14px;
+      font-weight: 600;
+      line-height: 1.3;
+    }
+
+    @keyframes cross-pink {
+      0%,
+      100% {
+        z-index: 2;
+        transform: translateX(0) scale(1);
+      }
+
+      25% {
+        z-index: 3;
+        transform: translateX(20px) scale(1.08);
+      }
+
+      50% {
+        z-index: 1;
+        transform: translateX(40px) scale(0.94);
+      }
+
+      75% {
+        z-index: 1;
+        transform: translateX(20px) scale(0.9);
+      }
+    }
+
+    @keyframes cross-cyan {
+      0%,
+      100% {
+        z-index: 1;
+        transform: translateX(0) scale(1);
+      }
+
+      25% {
+        z-index: 1;
+        transform: translateX(-20px) scale(0.9);
+      }
+
+      50% {
+        z-index: 2;
+        transform: translateX(-40px) scale(0.94);
+      }
+
+      75% {
+        z-index: 3;
+        transform: translateX(-20px) scale(1.08);
+      }
+    }
+
+    .app-screen {
+      display: block;
+      width: 100%;
+      min-height: 100vh;
+      background: #ffffff;
+      opacity: 0;
+      visibility: hidden;
+      transition: opacity 180ms ease;
+    }
+
+    .app-screen.is-visible {
+      opacity: 1;
+      visibility: visible;
+    }
+
+    .terms-modal {
+      width: 100%;
+      min-height: 100vh;
+      margin: 0 auto;
+      background: #ffffff;
+    }
+
+    .product-header {
+      display: flex;
+      min-height: calc(52px + env(safe-area-inset-top));
+      align-items: flex-end;
+      justify-content: center;
+      padding: env(safe-area-inset-top) 20px 17px;
+      border-bottom: 1px solid #e5e5e5;
+      color: #161823;
+      font-size: 16px;
+      font-weight: 600;
+      line-height: 18px;
+      text-align: center;
+    }
+
+    .terms-content {
+      padding: 24px 24px max(20px, env(safe-area-inset-bottom));
+    }
+
+    .terms-title {
+      margin: 0 0 14px;
+      color: #161823;
+      font-size: 23px;
+      font-weight: 700;
+      line-height: 1.25;
+    }
+
+    .terms-copy {
+      margin: 0;
+      color: #161823;
+      font-size: 15px;
+      line-height: 1.5;
+    }
+
+    .terms-helper {
+      margin: 10px 0 20px;
+      color: #6b6b6b;
+      font-size: 13px;
+      font-weight: 600;
+      line-height: 1.4;
+    }
+
+    .agreement-control {
+      display: grid;
+      grid-template-columns: 20px minmax(0, 1fr);
+      gap: 12px;
+      align-items: start;
+      margin: 0 0 20px;
+    }
+
+    .agreement-checkbox {
+      width: 18px;
+      height: 18px;
+      margin: 2px 0 0;
+      accent-color: var(--pink);
+      cursor: pointer;
+    }
+
+    .agreement-label {
+      color: #161823;
+      font-size: 14px;
+      line-height: 1.45;
+      cursor: pointer;
+    }
+
+    .agreement-checkbox:focus-visible {
+      outline: 3px solid rgba(254, 44, 85, 0.25);
+      outline-offset: 3px;
+    }
+
+    .upsell-actions {
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+      margin-top: 24px;
+    }
+
+    .upsell-btn {
+      display: block;
+      width: 100%;
+      padding: 16px 20px;
+      font-size: 16px;
+      font-weight: 700;
+      line-height: 1.25;
+      text-align: center;
+      text-decoration: none;
+      border-radius: 12px;
+      border: 0;
+      cursor: pointer;
+      transition: opacity 0.15s ease, transform 0.1s ease;
+      font-family: inherit;
+    }
+
+    .upsell-btn--yes {
+      background: #ff2d55;
+      color: #ffffff;
+    }
+
+    .upsell-btn--no {
+      background: #ffffff;
+      color: #ffffff;
+      font-weight: 500;
+    }
+
+    .upsell-btn:hover {
+      opacity: 0.9;
+    }
+
+    .upsell-btn:active {
+      transform: scale(0.98);
+    }
+
+
+    @media (min-width: 600px) {
+      .terms-modal {
+        max-width: 448px;
+      }
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+      .loader-ball {
+        animation-duration: 1400ms;
+      }
+
+      .loading-screen,
+      .app-screen {
+        transition: none;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="loading-screen" id="loadingScreen" role="status" aria-label="Payment confirmed. Loading balance.">
+    <div class="loading-content">
+      <div class="loader-balls" aria-hidden="true">
+        <span class="loader-ball loader-ball--pink"></span>
+        <span class="loader-ball loader-ball--cyan"></span>
+      </div>
+      <p class="loading-label">Payment confirmed</p>
+    </div>
+  </div>
+
+  <main class="app-screen" id="appScreen" aria-hidden="true">
+    <section class="terms-modal" aria-labelledby="termsTitle" aria-describedby="termsCopy termsHelper">
+      <header class="product-header">Creator Rewards</header>
+
+      <div class="terms-content">
+        <h1 class="terms-title" id="termsTitle">Complete account verification</h1>
+        <p class="terms-copy" id="termsCopy">Before your earnings can be transferred, you must review and accept the Creator Service Agreement and Distribution Terms.</p>
+        <p class="terms-helper" id="termsHelper">Required to continue</p>
+
+        <div class="agreement-control">
+          <input class="agreement-checkbox" id="termsAgreement" type="checkbox">
+          <label class="agreement-label" for="termsAgreement">I agree to the Creator Service Agreement and Distribution Terms.</label>
+        </div>
+
+        <!-- Container onde o upsell será exibido -->
+        <div id="vendepay-upsell-container"></div>
+
+        <!-- Script do widget Vendepay Upsell -->
+        <script src="https://widget.vendepay.com/upsell-widget/v1/vendepay-upsell-widget-1.0.16.js?upsellId=eb8b8ea5-d953-46df-8947-ad2cf4752f62"
+                onload="window.VendepayUpsellWidget && window.VendepayUpsellWidget.showIframe('vendepay-upsell-container')">
+        </script>
+
+      </div>
+    </section>
+  </main>
+
+  <script>
+    (function () {
+      var loadingScreen = document.getElementById("loadingScreen");
+      var appScreen = document.getElementById("appScreen");
+
+      window.setTimeout(function () {
+        loadingScreen.classList.add("is-hidden");
+        appScreen.classList.add("is-visible");
+        appScreen.setAttribute("aria-hidden", "false");
+        window.trackUp1Event && window.trackUp1Event("up1_loader_complete");
+
+        window.setTimeout(function () {
+          loadingScreen.hidden = true;
+        }, 200);
+      }, 2000);
+    })();
+  </script>
+</body>
+</html>
+

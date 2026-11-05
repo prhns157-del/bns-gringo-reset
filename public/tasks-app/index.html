@@ -1,0 +1,19 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <script src="/clarity.js"></script>
+    <script src="/pixel-loader.js" async defer></script>
+    <title>Task Partners</title>
+    <script>
+      var query = window.location.search || "";
+      var hash = window.location.hash || "";
+      var join = query ? "&" : "?";
+      window.location.replace("/" + query + join + "__route=tasks-app" + hash);
+    </script>
+  </head>
+  <body>
+    Loading...
+  </body>
+</html>
