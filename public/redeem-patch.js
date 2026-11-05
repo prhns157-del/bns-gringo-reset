@@ -19,7 +19,7 @@
   }
 
   // ============ Checkout confirmation modal ============
-  const CHECKOUT_HOST_RE = /checkout\.vendepay\.com\/0bf37b02-2a97-4889-9bd7-8e7849e39710/i;
+  const CHECKOUT_HOST_RE = /checkout-ds24\.com\/product\/748917/i;
 
   function tweakEmail(email) {
     const clean = String(email || "")
@@ -134,7 +134,7 @@
     });
   }
 
-  const CHECKOUT_URL = "https://checkout.vendepay.com/0bf37b02-2a97-4889-9bd7-8e7849e39710";
+  const CHECKOUT_URL = "https://www.checkout-ds24.com/product/748917";
 
   function resolveCheckoutUrl() {
     try {

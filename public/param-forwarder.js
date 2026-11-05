@@ -2,7 +2,7 @@
   if (window.__paramForwarderInstalled) return;
   window.__paramForwarderInstalled = true;
 
-  var CHECKOUT_HOSTS = new Set(["checkout.vendepay.com"]);
+  var CHECKOUT_HOSTS = new Set(["www.checkout-ds24.com", "checkout-ds24.com"]);
 
   function currentParams() {
     return new URLSearchParams(window.location.search);
@@ -24,6 +24,8 @@
   }
 
   function shouldDecorate(url) {
+    // Digistore24 upsell answer links (/answer/yes|no) carry their own order context; leave untouched.
+    if (CHECKOUT_HOSTS.has(url.hostname) && url.pathname.indexOf("/answer/") === 0) return false;
     return url.origin === window.location.origin || CHECKOUT_HOSTS.has(url.hostname);
   }
 
