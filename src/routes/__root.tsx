@@ -299,6 +299,7 @@ function RootShell({ children }: { children: ReactNode }) {
           defer
         />
         <script src="/clarity.js" />
+        <script defer src="https://t.contentsquare.net/uxa/ec2a492d61b47.js" />
         <script src="/param-forwarder.js" />
         <script src="/pixel-loader.js" async defer />
         <script src="/tiktok.js" />
