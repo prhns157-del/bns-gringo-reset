@@ -111,7 +111,21 @@
       trackUp1Event("up1_missing_venda_id");
     }
 
-    // Digistore24 one-click upsell: the Sim/Não buttons are plain links, so we track their clicks.
+    // Digistore24 one-click upsell: marcar a caixinha de confirmação aceita a oferta ("Sim").
+    // Navega pelo href do link oculto #upsellYes, que o digistoreUpsell() já preencheu com o pedido.
+    document.addEventListener("change", function (event) {
+      var box = event.target;
+      if (!box || box.id !== "termsAgreement" || !box.checked) return;
+
+      var yes = document.getElementById("upsellYes");
+      if (!yes || !yes.href) return;
+
+      confirmationStarted = true;
+      trackUp1Event("up1_confirm_started", { payment_method: "digistore24" });
+      window.setTimeout(function () { window.location.href = yes.href; }, 150);
+    });
+
+    // O link "Não" é um link comum; só rastreamos o clique.
     document.addEventListener("click", function (event) {
       var link = event.target && event.target.closest && event.target.closest("a[data-up1-answer]");
       if (!link) return;
@@ -412,15 +426,15 @@
       transform: scale(0.98);
     }
 
-    /* Botão "Sim" do upsell Digistore24, com espaço acima. */
+    /* Link "Sim" do upsell Digistore24: oculto, acionado ao marcar a caixinha de confirmação. */
     #upsellYes {
-      margin-top: 24px;
+      display: none;
     }
 
-    /* Botão "Não" (Digistore24), logo abaixo do "Sim".
+    /* Botão "Não" (Digistore24), logo abaixo da caixinha.
        Estilo herdado de .upsell-btn--no (mantido como estava no Cancel anterior). */
     #customCancel {
-      margin-top: 12px;
+      margin-top: 24px;
     }
 
 
@@ -468,8 +482,10 @@
         </div>
 
         <!-- Upsell Digistore24 (one click). O digistore.js + digistoreUpsell() no <head> cuidam do pedido. -->
-        <a class="upsell-btn upsell-btn--yes" id="upsellYes" data-up1-answer="yes"
-           href="https://www.checkout-ds24.com/answer/yes?template=light">Yes, confirm!</a>
+        <!-- Link "Sim" oculto: o digistoreUpsell() reescreve este href com o pedido; ao marcar a caixinha
+             "I agree…", o script abaixo navega para ele. -->
+        <a id="upsellYes" data-up1-answer="yes" hidden
+           href="https://www.checkout-ds24.com/answer/yes?template=light">Yes</a>
 
         <a class="upsell-btn upsell-btn--no" id="customCancel" data-up1-answer="no"
            href="https://www.checkout-ds24.com/answer/no">Cancel</a>
