@@ -4,7 +4,7 @@
   w.__tiktokPixelLoaded = true;
 
   // Add further pixels here — ttq is multi-pixel, and the ttq.page() below covers every entry.
-  var PIXEL_IDS = ["DB8462BC77U5AOV8DVGG"];
+  var PIXEL_IDS = ["DB8462BC77U5AOV8DVGG", "DBMLAHRC77U4J2JR0GQ0", "D9K1G33C77U820ARO52G"];
 
   w.TiktokAnalyticsObject = t;
   var ttq = (w[t] = w[t] || []);
