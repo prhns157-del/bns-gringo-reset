@@ -53,8 +53,21 @@ export const Route = createFileRoute("/api/public/digistore24-ipn")({
           return textResponse("OK");
         }
 
-        // Field names only (no values): confirms whether sid1/sid2/ip arrive from Digistore.
-        console.log("[Digistore24 IPN] on_payment fields", Object.keys(payload).sort(compareAscii));
+        // Field names (one string, so the log is not cut at 100 items) and the tracking fields
+        // that carry our checkout-link data. Values are shortened; nothing personal is logged.
+        console.log(
+          "[Digistore24 IPN] on_payment fields",
+          Object.keys(payload).sort(compareAscii).join(","),
+        );
+        console.log("[Digistore24 IPN] tracking fields", {
+          ...Object.fromEntries(
+            Object.keys(payload)
+              .filter((key) => /^(sid\d|utm_|src$|sck$|click_id|campaignkey|trackingkey|custom)/.test(key))
+              .sort(compareAscii)
+              .map((key) => [key, `${(payload[key] ?? "").length} chars: ${(payload[key] ?? "").slice(0, 14)}`]),
+          ),
+          checkout_url_params: checkoutUrlParams(payload),
+        });
 
         const pixels = resolvePixels();
         if (pixels.length === 0) {
@@ -159,8 +172,8 @@ async function sendCompletePayment(
 
   // The checkout link carries the ad click id (sid1) and the pixel cookie (sid2),
   // see public/param-forwarder.js. They tie the sale back to the ad click.
-  const ttclid = (payload.sid1 ?? "").trim();
-  const ttp = (payload.sid2 ?? "").trim();
+  const ttclid = trackingValue(payload, "sid1");
+  const ttp = trackingValue(payload, "sid2");
   if (ttclid) user.ttclid = ttclid;
   if (ttp) user.ttp = ttp;
   const ip = (payload.ip ?? payload.buyer_ip ?? "").trim();
@@ -219,6 +232,24 @@ async function sendCompletePayment(
   return sent;
 }
 
+// The checkout link params we add (sid1..sid4) normally come back as IPN fields. If Digistore keeps
+// them only inside `checkout_url`, read them from there.
+function checkoutUrlSearch(payload: IpnPayload) {
+  try {
+    return new URL(payload.checkout_url ?? "").searchParams;
+  } catch {
+    return new URLSearchParams();
+  }
+}
+
+function checkoutUrlParams(payload: IpnPayload) {
+  return Array.from(checkoutUrlSearch(payload).keys()).sort(compareAscii).join(",");
+}
+
+function trackingValue(payload: IpnPayload, key: string) {
+  return (payload[key] ?? "").trim() || (checkoutUrlSearch(payload).get(key) ?? "").trim();
+}
+
 // One id for TikTok event_id, Utmify orderId and xTracky orderId. If xTracky also uses its orderId
 // as the TikTok event_id, TikTok drops the second CompletePayment (48 h window).
 function buildEventId(payload: IpnPayload) {
@@ -260,9 +291,9 @@ function buildSale(payload: IpnPayload): Sale {
     paymentMethod: pick("pay_method", "payment_method"),
     productId: pick("product_id"),
     productName: pick("product_name"),
-    utmBundle: pick("sid3"),
-    utms: Object.fromEntries(UTM_KEYS.map((key) => [key, pick(key)])),
-    leadId: pick("sid4"),
+    utmBundle: trackingValue(payload, "sid3"),
+    utms: Object.fromEntries(UTM_KEYS.map((key) => [key, trackingValue(payload, key)])),
+    leadId: trackingValue(payload, "sid4"),
   };
 }
 
