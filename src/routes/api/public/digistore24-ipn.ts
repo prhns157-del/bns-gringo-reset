@@ -279,9 +279,10 @@ function buildSale(payload: IpnPayload): Sale {
 
   return {
     id: buildEventId(payload),
-    // Full amount paid by the buyer. No `commission`: the sale counts at its full value in Utmify
-    // (the vendor/affiliate split would show only cents there).
+    // Gross = what the buyer paid. Net = Digistore's "Valor líquido" (`amount_netto`), shown as the
+    // order's net revenue in Utmify. Not `amount_vendor` (the vendor/affiliate split is only cents).
     value: number("transaction_amount", "amount_brutto"),
+    commission: number("amount_netto") || undefined,
     currency: (pick("transaction_currency", "currency") || "USD").toUpperCase().slice(0, 3),
     email: /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) ? email : "",
     name,
