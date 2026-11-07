@@ -248,8 +248,9 @@ function buildSale(payload: IpnPayload): Sale {
 
   return {
     id: buildEventId(payload),
+    // Full amount paid by the buyer. No `commission`: the sale counts at its full value in Utmify
+    // (the vendor/affiliate split would show only cents there).
     value: number("transaction_amount", "amount_brutto"),
-    commission: number("amount_vendor", "vendor_amount") || undefined,
     currency: (pick("transaction_currency", "currency") || "USD").toUpperCase().slice(0, 3),
     email: /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) ? email : "",
     name,
