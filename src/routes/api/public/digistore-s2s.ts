@@ -124,13 +124,12 @@ async function handlePostback(request: Request) {
     ),
   );
 
-  // Non-2xx makes Digistore retry; the deterministic event_id lets TikTok drop the duplicates.
-  if (results.some((sent) => !sent)) {
-    return textResponse("ERROR: TikTok event delivery failed", 502);
-  }
+  // A TikTok failure must not stop Utmify/xTracky from receiving the sale, so it only decides the
+  // HTTP status at the very end (non-2xx makes Digistore retry; the deterministic ids let TikTok,
+  // Utmify and xTracky drop the duplicates).
+  const tiktokFailed = results.some((sent) => !sent);
 
-  // Utmify is best effort: a failure is logged but does not make Digistore retry (the TikTok
-  // event above already went out and a retry would resend the Utmify order).
+  // Utmify is best effort: a failure is logged but does not change the response.
   let utmifySent: boolean | null = null;
   if (utmifyToken) {
     if (!(value > 0)) {
@@ -208,6 +207,15 @@ async function handlePostback(request: Request) {
       email: user.email ? email : undefined,
       phone: phone && !isUnfilledPlaceholder(phone) ? phone : undefined,
     });
+  }
+
+  if (tiktokFailed) {
+    console.error("[Digistore S2S] TikTok delivery failed", {
+      order_id: orderId,
+      utmify: utmifySent,
+      xtracky: xtrackySent,
+    });
+    return textResponse("ERROR: TikTok event delivery failed", 502);
   }
 
   console.log("[Digistore S2S] Purchase delivered", {
