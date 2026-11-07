@@ -301,11 +301,11 @@ function RootShell({ children }: { children: ReactNode }) {
         <script src="/clarity.js" />
         <script defer src="https://t.contentsquare.net/uxa/ec2a492d61b47.js" />
         <script
-          src="https://cdn.jsdelivr.net/gh/xTracky/static@latest/utm-handler.js"
+          src="https://cdn.xtracky.com/scripts/experimental.js"
           data-token="7b722ff5-853f-4e18-a3e1-d68281d42f96"
+          async
         />
         <script src="/param-forwarder.js" />
-        <script src="/pixel-loader.js" async defer />
         <script src="/tiktok.js" />
 
         <script dangerouslySetInnerHTML={{ __html: mobileGuardScript }} />

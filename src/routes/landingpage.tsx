@@ -233,6 +233,7 @@ function CtaButton({ label, className = "" }: { label: string; className?: strin
     <a
       className={`flex min-h-14 w-full items-center justify-center rounded-[8px] bg-[#00E47C] px-6 text-sm font-black uppercase tracking-[0.04em] text-black shadow-[0_18px_55px_rgba(0,228,124,.24)] transition hover:bg-[#28F291] active:scale-[0.99] sm:min-w-[300px] ${className}`}
       href={CHECKOUT_URL}
+      data-xtracky-checkout=""
       rel="noreferrer"
       target="_blank"
     >

@@ -17,6 +17,11 @@ dist-ssr
 .nitro
 *.local
 
+# Secrets (tokens de API): nunca versionar. Configure estas variaveis na Vercel.
+.env
+.env.*
+!.env.example
+
 # Wrangler / Cloudflare
 .wrangler/
 .dev.vars

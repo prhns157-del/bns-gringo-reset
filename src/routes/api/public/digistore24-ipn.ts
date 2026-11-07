@@ -1,7 +1,8 @@
 import { createFileRoute } from "@tanstack/react-router";
 
+import { resolvePixels, secureEqual, sha256 } from "../../../lib/tiktok-events";
+
 const TIKTOK_EVENTS_API = "https://business-api.tiktok.com/open_api/v1.3/event/track/";
-const DEFAULT_PIXEL_ID = "DB8462BC77U5AOV8DVGG";
 
 type IpnPayload = Record<string, string>;
 
@@ -42,28 +43,27 @@ export const Route = createFileRoute("/api/public/digistore24-ipn")({
           return textResponse("OK");
         }
 
-        if ((payload.api_mode ?? "").toLowerCase() !== "live") {
+        // While TIKTOK_TEST_EVENT_CODE is set, Digistore test payments are forwarded as TikTok
+        // test events (visible only in Events Manager > Test Events). Remove it for production.
+        const testEventCode = process.env.TIKTOK_TEST_EVENT_CODE?.trim() ?? "";
+        if ((payload.api_mode ?? "").toLowerCase() !== "live" && !testEventCode) {
           console.log("[Digistore24 IPN] Test payment accepted without production event");
           return textResponse("OK");
         }
 
-        const accessToken = process.env.TIKTOK_ACCESS_TOKEN;
-        if (!accessToken) {
-          console.error("[Digistore24 IPN] TIKTOK_ACCESS_TOKEN is not configured");
-          return textResponse("ERROR: TikTok access token is not configured", 500);
-        }
+        // Field names only (no values): confirms whether sid1/sid2/ip arrive from Digistore.
+        console.log("[Digistore24 IPN] on_payment fields", Object.keys(payload).sort(compareAscii));
 
-        const pixelIds = (process.env.TIKTOK_PIXEL_IDS ?? DEFAULT_PIXEL_ID)
-          .split(",")
-          .map((pixelId) => pixelId.trim())
-          .filter(Boolean);
-
-        if (pixelIds.length === 0) {
+        const pixels = resolvePixels();
+        if (pixels.length === 0) {
+          console.error("[Digistore24 IPN] No TikTok pixel with an access token is configured");
           return textResponse("ERROR: no TikTok pixel is configured", 500);
         }
 
         const results = await Promise.all(
-          pixelIds.map((pixelId) => sendCompletePayment(accessToken, pixelId, payload)),
+          pixels.map((pixel) =>
+            sendCompletePayment(pixel.accessToken, pixel.pixelId, payload, testEventCode),
+          ),
         );
         if (results.some((sent) => !sent)) {
           return textResponse("ERROR: TikTok event delivery failed", 502);
@@ -73,7 +73,7 @@ export const Route = createFileRoute("/api/public/digistore24-ipn")({
           event_id: buildEventId(payload),
           order_id: payload.order_id ?? "",
           payment_id: payload.payment_id ?? "",
-          pixels: pixelIds,
+          pixels: pixels.map((pixel) => pixel.pixelId),
         });
         return textResponse("OK");
       },
@@ -125,16 +125,12 @@ function compareAscii(left: string, right: string) {
   return left < right ? -1 : 1;
 }
 
-function secureEqual(left: string, right: string) {
-  if (left.length !== right.length || left.length === 0) return false;
-  let difference = 0;
-  for (let index = 0; index < left.length; index++) {
-    difference |= left.charCodeAt(index) ^ right.charCodeAt(index);
-  }
-  return difference === 0;
-}
-
-async function sendCompletePayment(accessToken: string, pixelId: string, payload: IpnPayload) {
+async function sendCompletePayment(
+  accessToken: string,
+  pixelId: string,
+  payload: IpnPayload,
+  testEventCode: string,
+) {
   const email = (payload.email ?? payload.buyer_email ?? "").trim().toLowerCase();
   const phone = normalizePhone(payload.address_phone_no ?? "");
   const orderId = payload.order_id ?? "";
@@ -146,6 +142,15 @@ async function sendCompletePayment(accessToken: string, pixelId: string, payload
   if (phone) user.phone = await sha256(phone);
   if (orderId) user.external_id = await sha256(orderId.toLowerCase());
 
+  // The checkout link carries the ad click id (sid1) and the pixel cookie (sid2),
+  // see public/param-forwarder.js. They tie the sale back to the ad click.
+  const ttclid = (payload.sid1 ?? "").trim();
+  const ttp = (payload.sid2 ?? "").trim();
+  if (ttclid) user.ttclid = ttclid;
+  if (ttp) user.ttp = ttp;
+  const ip = (payload.ip ?? payload.buyer_ip ?? "").trim();
+  if (/^[0-9a-fA-F:.]{3,45}$/.test(ip)) user.ip = ip;
+
   const response = await fetch(TIKTOK_EVENTS_API, {
     method: "POST",
     headers: {
@@ -155,6 +160,7 @@ async function sendCompletePayment(accessToken: string, pixelId: string, payload
     body: JSON.stringify({
       event_source: "web",
       event_source_id: pixelId,
+      ...(testEventCode ? { test_event_code: testEventCode } : {}),
       data: [
         {
           event: "CompletePayment",
@@ -220,13 +226,6 @@ function normalizePhone(raw: string) {
   if (digits.length === 10) return `+1${digits}`;
   if (digits.length === 11 && digits.startsWith("1")) return `+${digits}`;
   return `+${digits}`;
-}
-
-async function sha256(value: string) {
-  const digest = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(value));
-  return Array.from(new Uint8Array(digest))
-    .map((byte) => byte.toString(16).padStart(2, "0"))
-    .join("");
 }
 
 function textResponse(body: string, status = 200) {
