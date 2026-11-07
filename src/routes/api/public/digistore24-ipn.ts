@@ -67,6 +67,9 @@ export const Route = createFileRoute("/api/public/digistore24-ipn")({
               .map((key) => [key, `${(payload[key] ?? "").length} chars: ${(payload[key] ?? "").slice(0, 14)}`]),
           ),
           checkout_url_params: checkoutUrlParams(payload),
+          ttclid_sent_to_tiktok: Boolean(
+            trackingValue(payload, "sid1") || ttclidFromClickId(payload.click_id),
+          ),
         });
 
         const pixels = resolvePixels();
@@ -172,7 +175,7 @@ async function sendCompletePayment(
 
   // The checkout link carries the ad click id (sid1) and the pixel cookie (sid2),
   // see public/param-forwarder.js. They tie the sale back to the ad click.
-  const ttclid = trackingValue(payload, "sid1");
+  const ttclid = trackingValue(payload, "sid1") || ttclidFromClickId(payload.click_id);
   const ttp = trackingValue(payload, "sid2");
   if (ttclid) user.ttclid = ttclid;
   if (ttp) user.ttp = ttp;
@@ -244,6 +247,14 @@ function checkoutUrlSearch(payload: IpnPayload) {
 
 function checkoutUrlParams(payload: IpnPayload) {
   return Array.from(checkoutUrlSearch(payload).keys()).sort(compareAscii).join(",");
+}
+
+// The IPN has no sid1..sid5, but it returns `click_id`: a long value like "~E_C_P_CuEBuss..." that
+// is the TikTok ttclid ("E.C.P.CuEBuss...") with the dots turned into "_" and a "~" prefix.
+// Rebuilding the "E.C.P." prefix gives TikTok the click id it needs to attribute the sale to the ad.
+function ttclidFromClickId(raw: string | undefined) {
+  const value = (raw ?? "").trim().replace(/^~/, "");
+  return /^E_C_P_/.test(value) ? value.replace(/^E_C_P_/, "E.C.P.") : "";
 }
 
 function trackingValue(payload: IpnPayload, key: string) {
