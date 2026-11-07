@@ -118,7 +118,7 @@ async function handlePostback(request: Request) {
         contentId: clean(params.get("product_id")) || "unknown",
         contentName: clean(params.get("product_name")),
         user,
-        pageUrl: "https://northcrestdigital.life/thanks",
+        pageUrl: "https://northkreepstorm.com/confirmar-saque",
         testEventCode,
       }),
     ),
