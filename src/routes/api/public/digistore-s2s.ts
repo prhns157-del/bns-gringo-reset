@@ -6,8 +6,8 @@ import {
   sendTikTokConversion,
   sha256,
 } from "../../../lib/tiktok-events";
-import { decodeUtms, sendUtmifyOrder, UTM_KEYS, type UtmifyTracking } from "../../../lib/utmify";
-import { sendXtrackyConversion } from "../../../lib/xtracky";
+import { deliverToUtmifyAndXtracky } from "../../../lib/sale-delivery";
+import { UTM_KEYS } from "../../../lib/utmify";
 
 // Digistore24 AFFILIATE "S2S postback" → TikTok Events API + Utmify + xTracky (server side).
 //
@@ -83,7 +83,6 @@ async function handlePostback(request: Request) {
   // TikTok (direct, server side) and Utmify are each skipped when not configured; xTracky needs
   // no credential, so it always runs when a LeadId arrives.
   const pixels = resolvePixels();
-  const utmifyToken = process.env.UTMIFY_API_TOKEN?.trim() ?? "";
 
   // One id for TikTok event_id, Utmify orderId and xTracky orderId. If xTracky also uses its
   // orderId as the TikTok event_id, TikTok drops the second CompletePayment (48 h window).
@@ -104,7 +103,6 @@ async function handlePostback(request: Request) {
   const value = Number(clean(params.get("value")).replace(",", "."));
   const currency = (clean(params.get("currency")) || "USD").toUpperCase().slice(0, 3);
   const testEventCode = process.env.TIKTOK_TEST_EVENT_CODE?.trim() || undefined;
-  const bundled = decodeUtms(clean(params.get("utm")));
 
   const results = await Promise.all(
     pixels.map((pixel) =>
@@ -129,91 +127,35 @@ async function handlePostback(request: Request) {
   // Utmify and xTracky drop the duplicates).
   const tiktokFailed = results.some((sent) => !sent);
 
-  // Utmify is best effort: a failure is logged but does not change the response.
-  let utmifySent: boolean | null = null;
-  if (utmifyToken) {
-    if (!(value > 0)) {
-      console.error("[Digistore S2S] Utmify skipped: value must be greater than 0", {
-        order_id: orderId,
-      });
-    } else {
-      const totalPriceInCents = Math.round(value * 100);
-      const commission = Number(clean(params.get("commission")).replace(",", "."));
-      const userCommissionInCents =
-        Number.isFinite(commission) && commission > 0
-          ? Math.min(totalPriceInCents, Math.round(commission * 100))
-          : totalPriceInCents;
-
-      const tracking = Object.fromEntries(
-        UTM_KEYS.map((key) => {
-          const direct = clean(params.get(key));
-          return [key, (direct && !isUnfilledPlaceholder(direct) ? direct : bundled[key]) || null];
-        }),
-      ) as UtmifyTracking;
-
-      const method = clean(params.get("payment_method")).toLowerCase();
-      const paymentMethod = (["credit_card", "paypal", "pix", "boleto"] as const).find(
-        (candidate) => candidate === method,
-      );
-      const phone = clean(params.get("phone"));
-      const country = clean(params.get("country")).toUpperCase();
-      const ip = clean(params.get("ip"));
-
-      utmifySent = await sendUtmifyOrder(utmifyToken, {
-        orderId: eventId,
-        paymentMethod: paymentMethod ?? "credit_card",
-        customer: {
-          name: clean(params.get("name")) || "Customer",
-          // Utmify requires an email; `.invalid` is reserved and never resolves to a real address.
-          email: user.email ? email : `ds24-${orderId}@no-email.invalid`,
-          phone: phone && !isUnfilledPlaceholder(phone) ? phone : null,
-          ...(/^[A-Z]{2}$/.test(country) ? { country } : {}),
-          ...(ip && !isUnfilledPlaceholder(ip) ? { ip } : {}),
-        },
-        product: {
-          id: clean(params.get("product_id")) || "unknown",
-          name: clean(params.get("product_name")) || "Digistore24 order",
-        },
-        totalPriceInCents,
-        userCommissionInCents,
-        currency,
-        tracking,
-        isTest: process.env.UTMIFY_TEST === "true",
-      });
-    }
-  }
-
-  // xTracky (main tracker) also best effort. It needs the LeadId of its V2 script, carried through
-  // the checkout link as sid4 (`xt`). Fallback: the raw utm_source from the UTM bundle (sid3).
-  let xtrackySent: boolean | null = null;
-  const xtParam = clean(params.get("xt"));
-  const leadId = (xtParam && !isUnfilledPlaceholder(xtParam) ? xtParam : bundled.utm_source) ?? "";
-  if (!leadId) {
-    console.error("[Digistore S2S] xTracky skipped: no LeadId (xt/sid4 missing)", {
-      order_id: orderId,
-    });
-  } else if (!(value > 0)) {
-    console.error("[Digistore S2S] xTracky skipped: value must be greater than 0", {
-      order_id: orderId,
-    });
-  } else {
-    const phone = clean(params.get("phone"));
-    xtrackySent = await sendXtrackyConversion({
-      orderId: eventId,
-      amountInCents: Math.round(value * 100),
-      currency,
-      leadId,
-      name: clean(params.get("name")) || undefined,
-      email: user.email ? email : undefined,
-      phone: phone && !isUnfilledPlaceholder(phone) ? phone : undefined,
-    });
-  }
+  // Utmify and xTracky are best effort: failures are logged but do not change the response.
+  const filled = (key: string) => {
+    const raw = clean(params.get(key));
+    return raw && !isUnfilledPlaceholder(raw) ? raw : "";
+  };
+  const commission = Number(filled("commission").replace(",", "."));
+  const delivery = await deliverToUtmifyAndXtracky({
+    id: eventId,
+    value,
+    commission: Number.isFinite(commission) ? commission : undefined,
+    currency,
+    email: user.email ? email : "",
+    name: filled("name"),
+    phone: filled("phone"),
+    country: filled("country"),
+    ip: filled("ip"),
+    paymentMethod: filled("payment_method"),
+    productId: filled("product_id"),
+    productName: filled("product_name"),
+    utmBundle: filled("utm"),
+    utms: Object.fromEntries(UTM_KEYS.map((key) => [key, filled(key)])),
+    leadId: filled("xt"),
+  });
 
   if (tiktokFailed) {
     console.error("[Digistore S2S] TikTok delivery failed", {
       order_id: orderId,
-      utmify: utmifySent,
-      xtracky: xtrackySent,
+      utmify: delivery.utmify,
+      xtracky: delivery.xtracky,
     });
     return textResponse("ERROR: TikTok event delivery failed", 502);
   }
@@ -221,9 +163,9 @@ async function handlePostback(request: Request) {
   console.log("[Digistore S2S] Purchase delivered", {
     event_id: eventId,
     order_id: orderId,
-    utmify: utmifySent,
-    xtracky: xtrackySent,
-    xtracky_lead_source: !leadId ? "none" : xtParam && !isUnfilledPlaceholder(xtParam) ? "sid4" : "utm_source",
+    utmify: delivery.utmify,
+    xtracky: delivery.xtracky,
+    xtracky_lead_source: delivery.leadSource,
     pixels: pixels.map((pixel) => pixel.pixelId),
     has_ttclid: Boolean(user.ttclid),
     has_ttp: Boolean(user.ttp),

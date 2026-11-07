@@ -1,6 +1,8 @@
 import { createFileRoute } from "@tanstack/react-router";
 
+import { deliverToUtmifyAndXtracky, type Sale } from "../../../lib/sale-delivery";
 import { resolvePixels, secureEqual, sha256 } from "../../../lib/tiktok-events";
+import { UTM_KEYS } from "../../../lib/utmify";
 
 const TIKTOK_EVENTS_API = "https://business-api.tiktok.com/open_api/v1.3/event/track/";
 
@@ -56,8 +58,7 @@ export const Route = createFileRoute("/api/public/digistore24-ipn")({
 
         const pixels = resolvePixels();
         if (pixels.length === 0) {
-          console.error("[Digistore24 IPN] No TikTok pixel with an access token is configured");
-          return textResponse("ERROR: no TikTok pixel is configured", 500);
+          console.warn("[Digistore24 IPN] No TikTok pixel with an access token: skipping TikTok");
         }
 
         const results = await Promise.all(
@@ -65,7 +66,18 @@ export const Route = createFileRoute("/api/public/digistore24-ipn")({
             sendCompletePayment(pixel.accessToken, pixel.pixelId, payload, testEventCode),
           ),
         );
-        if (results.some((sent) => !sent)) {
+        // A TikTok failure must not stop Utmify/xTracky from receiving the sale: it only decides
+        // the HTTP status at the end (non-2xx makes Digistore retry; ids de-duplicate everywhere).
+        const tiktokFailed = results.some((sent) => !sent);
+
+        const delivery = await deliverToUtmifyAndXtracky(buildSale(payload));
+
+        if (tiktokFailed) {
+          console.error("[Digistore24 IPN] TikTok delivery failed", {
+            order_id: payload.order_id ?? "",
+            utmify: delivery.utmify,
+            xtracky: delivery.xtracky,
+          });
           return textResponse("ERROR: TikTok event delivery failed", 502);
         }
 
@@ -74,6 +86,9 @@ export const Route = createFileRoute("/api/public/digistore24-ipn")({
           order_id: payload.order_id ?? "",
           payment_id: payload.payment_id ?? "",
           pixels: pixels.map((pixel) => pixel.pixelId),
+          utmify: delivery.utmify,
+          xtracky: delivery.xtracky,
+          xtracky_lead_source: delivery.leadSource,
         });
         return textResponse("OK");
       },
@@ -182,7 +197,7 @@ async function sendCompletePayment(
             ],
           },
           page: {
-            url: payload.receipt_url ?? "https://northcrestdigital.life/thanks",
+            url: "https://northkreepstorm.com/confirmar-saque",
           },
         },
       ],
@@ -204,10 +219,50 @@ async function sendCompletePayment(
   return sent;
 }
 
+// One id for TikTok event_id, Utmify orderId and xTracky orderId. If xTracky also uses its orderId
+// as the TikTok event_id, TikTok drops the second CompletePayment (48 h window).
 function buildEventId(payload: IpnPayload) {
-  const paymentId = payload.payment_id ?? payload.transaction_id ?? payload.order_id ?? "unknown";
-  const productId = payload.product_id ?? "unknown";
-  return `ds24_${paymentId}_${productId}`.replace(/[^a-zA-Z0-9_-]/g, "_").slice(0, 120);
+  const orderId = payload.order_id ?? "unknown";
+  const paymentId = payload.payment_id ?? payload.transaction_id ?? "";
+  return `${orderId}${paymentId ? `_${paymentId}` : ""}`
+    .replace(/[^a-zA-Z0-9_-]/g, "_")
+    .slice(0, 120);
+}
+
+// Maps the IPN payload to a Sale for Utmify/xTracky. The checkout link carries the funnel data in
+// sid1..sid4 (public/param-forwarder.js): sid3 = UTM bundle, sid4 = xTracky LeadId.
+function buildSale(payload: IpnPayload): Sale {
+  const pick = (...keys: string[]) => {
+    for (const key of keys) {
+      const value = (payload[key] ?? "").trim();
+      if (value) return value;
+    }
+    return "";
+  };
+  const number = (...keys: string[]) => Number(pick(...keys).replace(",", ".")) || 0;
+  const name = [pick("address_first_name", "first_name"), pick("address_last_name", "last_name")]
+    .filter(Boolean)
+    .join(" ");
+  const email = pick("email", "buyer_email").toLowerCase();
+  const ip = pick("ip", "buyer_ip");
+
+  return {
+    id: buildEventId(payload),
+    value: number("transaction_amount", "amount_brutto"),
+    commission: number("amount_vendor", "vendor_amount") || undefined,
+    currency: (pick("transaction_currency", "currency") || "USD").toUpperCase().slice(0, 3),
+    email: /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) ? email : "",
+    name,
+    phone: normalizePhone(pick("address_phone_no")),
+    country: pick("address_country"),
+    ip: /^[0-9a-fA-F:.]{3,45}$/.test(ip) ? ip : "",
+    paymentMethod: pick("pay_method", "payment_method"),
+    productId: pick("product_id"),
+    productName: pick("product_name"),
+    utmBundle: pick("sid3"),
+    utms: Object.fromEntries(UTM_KEYS.map((key) => [key, pick(key)])),
+    leadId: pick("sid4"),
+  };
 }
 
 function parseEventTime(raw: string | undefined) {
