@@ -86,12 +86,23 @@ export async function deliverToUtmifyAndXtracky(sale: Sale): Promise<DeliveryRes
     }
   }
 
-  // xTracky only attributes a sale to a click through the LeadId of its V2 script. Fallback: the
-  // raw utm_source from the UTM bundle.
-  const leadId = sale.leadId || bundled.utm_source || "";
-  result.leadSource = sale.leadId ? "sid4" : bundled.utm_source ? "utm_source" : "none";
+  // xTracky only attributes a sale to a click through the LeadId of its V2 script (e.g.
+  // "TT-1794024187676-81njj1veoyxy1"). The V2 script also writes that LeadId into the page URL's
+  // utm_source, which Digistore returns in the IPN, so it is a reliable second source.
+  const looksLikeLeadId = (value: string) => /^[A-Za-z]{2}-\d{10,}-[A-Za-z0-9]+$/.test(value);
+  const candidates: [DeliveryResult["leadSource"], string][] = [
+    ["sid4", sale.leadId],
+    ["utm_source", sale.utms.utm_source ?? ""],
+    ["utm_source", bundled.utm_source ?? ""],
+  ];
+  const found = candidates.find(([, value]) => looksLikeLeadId(value));
+  const leadId = found?.[1] ?? "";
+  result.leadSource = found?.[0] ?? "none";
   if (!leadId) {
-    console.error("[Sale] xTracky skipped: no LeadId (sid4 missing)", { order_id: sale.id });
+    console.error("[Sale] xTracky skipped: no LeadId (sid4 / utm_source)", {
+      order_id: sale.id,
+      utm_source: (sale.utms.utm_source ?? bundled.utm_source ?? "").slice(0, 24),
+    });
   } else if (!(sale.value > 0)) {
     console.error("[Sale] xTracky skipped: value must be greater than 0", { order_id: sale.id });
   } else {
